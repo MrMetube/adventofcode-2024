@@ -12,35 +12,34 @@ Completed :: struct { num: int, func: proc(_,_:string)->(i64,i64), label1, label
 Todo      :: struct { using _: Completed, done1, done2: bool }
 Day:: union{ Completed, Todo }
 
-days := [?]Day{
-    Completed{ 1, day01, "distance", "similarity"},
-    Completed{ 2, day02, "safe reports", "safe reports with tolerance"},
-    Completed{ 3, day03, "uncorrupted mul instructions", "enabled mul instructions"},
-    Completed{ 4, day04, "XMAS count", "X-MAS count"},
-    Todo{ {5, day05, "correct update middle page number sum", "fixed incorrect update middle page number sum"}, true, false},
-    Todo{ {6, day06, "visited positions", "obstruction positions causing a loop"}, true, false},
-    Completed{ 7, day07, "total calibration result", "total calibration result with concatenation"},
-    Completed{ 8, day08, "antinode locations", "antinode locations with resonant harmonics"},
-    Todo{{ 9, day09, "", ""}, false, false},
-    Todo{{10, day10, "", ""}, false, false},
-    Todo{{11, day11, "", ""}, false, false},
-    Todo{{12, day12, "", ""}, false, false},
-    Todo{{13, day13, "", ""}, false, false},
-    Todo{{14, day14, "", ""}, false, false},
-    Todo{{15, day15, "", ""}, false, false},
-    Todo{{16, day16, "", ""}, false, false},
-    Todo{{17, day17, "", ""}, false, false},
-    Todo{{18, day18, "", ""}, false, false},
-    Todo{{19, day19, "", ""}, false, false},
-    Todo{{20, day20, "", ""}, false, false},
-    Todo{{21, day21, "", ""}, false, false},
-    Todo{{22, day22, "", ""}, false, false},
-    Todo{{23, day23, "", ""}, false, false},
-    Todo{{24, day24, "", ""}, false, false},
-    Todo{{25, day25, "", ""}, false, false},
-}
-
 main :: proc() {
+    days := [?]Day{
+        Completed{ 1, day01, "distance", "similarity"},
+        Completed{ 2, day02, "safe reports", "safe reports with tolerance"},
+        Completed{ 3, day03, "uncorrupted mul instructions", "enabled mul instructions"},
+        Completed{ 4, day04, "XMAS count", "X-MAS count"},
+        Todo{ {5, day05, "correct update middle page number sum", "fixed incorrect update middle page number sum"}, true, false},
+        Todo{ {6, day06, "visited positions", "obstruction positions causing a loop"}, true, false},
+        Completed{ 7, day07, "total calibration result", "total calibration result with concatenation"},
+        Completed{ 8, day08, "antinode locations", "antinode locations with resonant harmonics"},
+        Completed{ 9, day09, "filesystem checksum by file block", "filesystem checksum by whole file"},
+        Todo{{10, day10, "", ""}, false, false},
+        Todo{{11, day11, "", ""}, false, false},
+        Todo{{12, day12, "", ""}, false, false},
+        Todo{{13, day13, "", ""}, false, false},
+        Todo{{14, day14, "", ""}, false, false},
+        Todo{{15, day15, "", ""}, false, false},
+        Todo{{16, day16, "", ""}, false, false},
+        Todo{{17, day17, "", ""}, false, false},
+        Todo{{18, day18, "", ""}, false, false},
+        Todo{{19, day19, "", ""}, false, false},
+        Todo{{20, day20, "", ""}, false, false},
+        Todo{{21, day21, "", ""}, false, false},
+        Todo{{22, day22, "", ""}, false, false},
+        Todo{{23, day23, "", ""}, false, false},
+        Todo{{24, day24, "", ""}, false, false},
+        Todo{{25, day25, "", ""}, false, false},
+    }
     init_qpc()
     if len(os.args) >= 2 {
         assert(len(os.args) == 2, "bad argument")
@@ -69,39 +68,130 @@ day13 :: day0X
 day12 :: day0X
 day11 :: day0X
 day10 :: day0X
-day09 :: proc(path, test_path: string) -> (part1, part2: i64) {
+
+day09 :: proc(path, test_path: string) -> (filesystem_checksum_fragmented, filesystem_checksum_whole_file: i64) {
     line, ok := read_file(path when !ODIN_DEBUG else test_path)
     assert(auto_cast ok)
 
-    DiskMap :: [dynamic]int
+    File :: struct {
+        index, size, space: int,
+    }
+    DiskMap :: [dynamic]File
 
+    diskmap_fragmented : DiskMap
+    diskmap_whole_file : DiskMap
+    {
+        rest := line
+        for rest != "" {
+            size: int
+            size, rest = strconv.atoi(rest[:1]), rest[1:]
+            space: int
+            if rest != "" {
+                space, rest = strconv.atoi(rest[:1]), rest[1:]
+            }
+            append(&diskmap_fragmented, File{ len(diskmap_fragmented), size, space })
+            append(&diskmap_whole_file, File{ len(diskmap_whole_file), size, space })
+        }
+    }
+    
     display :: proc(diskmap: DiskMap) {
-        is_space: b32
-        file_index: i32
-        for e in diskmap {
-            for i in 0..<e {
-                if is_space {
+        when false {
+            for file in diskmap {
+                for i in 0..<file.size {
+                    fmt.print(file.index)
+                }
+                for i in 0..<file.space {
                     fmt.print(".")
-                } else {
-                    fmt.print(file_index)
                 }
             }
-            if !is_space {
-                file_index +=1
-            }
-
-            is_space = !is_space
+            fmt.println()
         }
     }
 
-    diskmap : DiskMap
-    rest := line
-    for rest != "" {
-        num, rest := strconv.atoi(rest[:1]), rest[1:]
-        fmt.println(num, " - ", rest)
+    // by file block
+    for head, tail := 0, len(diskmap_fragmented)-1; head < tail; head += 1 {
+        head_file := &diskmap_fragmented[head]
+        tail_file := &diskmap_fragmented[tail]
+        for head_file.space > 0 {
+            if tail_file.size <= head_file.space {
+                if head+1 == tail {
+                    tail_file.space += head_file.space - tail_file.size
+                    tail_file.space += tail_file.size
+                    head_file.space = 0
+                    break
+                } else {
+                    diskmap_fragmented[tail-1].space += tail_file.size + tail_file.space
+                    tail_file.space = head_file.space - tail_file.size
+                    head_file.space = 0
+                    shift_left(&diskmap_fragmented, tail, head+1)
+                }
+            } else {
+                tail_file.size         -= head_file.space
+                tail_file.space += head_file.space
+                insert(&diskmap_fragmented, File{ tail_file.index, head_file.space, 0 }, head+1)
+                head_file.space = 0
+                tail += 1
+            }
+        }
+    }
+
+    // by whole file
+    expected_file_index := len(diskmap_whole_file) -1
+    for tail := len(diskmap_whole_file)-1; tail >= 0; {
+        tail_file := &diskmap_whole_file[tail]
+        if tail_file.index > expected_file_index {
+            tail -= 1
+            continue
+        }
+        
+        moved: b32
+        for &head_file, head in diskmap_whole_file[0:tail] {
+            if head_file.space >= tail_file.size {
+                if head+1 == tail {
+                    tail_file.space += head_file.space - tail_file.size
+                    tail_file.space += tail_file.size
+                    head_file.space = 0
+                    moved = true
+                    break
+                } else {
+                    diskmap_whole_file[tail-1].space += tail_file.size + tail_file.space
+                    tail_file.space = head_file.space - tail_file.size
+                    head_file.space = 0
+                    shift_left(&diskmap_whole_file, tail, head+1)
+                    moved = true
+                    break
+                }
+            }
+        }
+
+        if !moved {
+            tail -= 1
+        }
+        expected_file_index -= 1
+
+        display(diskmap_whole_file)
     }
     
-    
+    // Chechsum
+    {
+        multiplier: i64
+        for file in diskmap_fragmented {
+            for i in 0..<file.size {
+                filesystem_checksum_fragmented += multiplier * auto_cast file.index
+                multiplier += 1
+            }
+        }
+    }
+    {
+        multiplier: i64
+        for file in diskmap_whole_file {
+            for i in 0..<file.size {
+                filesystem_checksum_whole_file += multiplier * auto_cast file.index
+                multiplier += 1
+            }
+            multiplier += auto_cast file.space
+        }
+    }
 
     return
 }

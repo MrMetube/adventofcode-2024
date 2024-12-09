@@ -7,21 +7,30 @@ import "core:os"
 import win "core:sys/windows"
 import "base:intrinsics"
 
-kilobytes :: proc(value: $N) -> N where intrinsics.type_is_numeric(N) && size_of(N) == 8 { return value*1024 }
-megabytes :: proc(value: $N) -> N where intrinsics.type_is_numeric(N) && size_of(N) == 8 { return kilobytes(value)*1024 }
-gigabytes :: proc(value: $N) -> N where intrinsics.type_is_numeric(N) && size_of(N) == 8 { return megabytes(value)*1024 }
-terabytes :: proc(value: $N) -> N where intrinsics.type_is_numeric(N) && size_of(N) == 8 { return gigabytes(value)*1024 }
 
-swap :: proc(a, b: ^$T) {
-    b^, a^ = a^, b^
+// ---------------------- ---------------------- ----------------------
+// ---------------------- array functions
+// ---------------------- ---------------------- ----------------------
+
+
+insert :: proc(array: ^[dynamic]$T, element: T, index: int) {
+    resize(array, len(array)+1)
+    copy(array[index+1:], array[index:])
+    array[index] = element
 }
 
-print_bits :: proc(a: u8) {
-	for i:=256; i>0; i >>= 1 {
-		fmt.print('1' if a & u8(i) != 0 else '0')
-	}
-	fmt.println()
+shift_left :: proc(array: ^[dynamic]$T, src_index, dst_index:int) {
+    assert(src_index > dst_index)
+    element := array[src_index]
+    copy(array[dst_index+1:src_index+1], array[dst_index:src_index])
+    array[dst_index] = element
 }
+
+
+// ---------------------- ---------------------- ----------------------
+// ---------------------- parsing
+// ---------------------- ---------------------- ----------------------
+
 
 line_to_numbers :: proc(line:string, separator := ",") -> ([]int) {
 	numbers := strings.split(line, separator)
@@ -153,9 +162,11 @@ read_lines :: proc(file: string) -> (result: []string, success: b32) {
 	return strings.split_lines(string(data)), true
 }
 
-index_in_bounds :: #force_inline proc "contextless" (index: int, array:[]$T) -> bool {
-	return index >= 0 && index < len(array)
-}
+
+// ---------------------- ---------------------- ----------------------
+// ---------------------- timing
+// ---------------------- ---------------------- ----------------------
+
 
 @(private="file")
 GLOBAL_perf_counter_frequency : win.LARGE_INTEGER
@@ -173,4 +184,28 @@ get_wall_clock :: #force_inline proc() -> i64 {
 
 get_seconds_elapsed :: #force_inline proc(start, end: i64) -> f32 {
     return f32(end - start) / f32(GLOBAL_perf_counter_frequency)
+}
+
+
+// ---------------------- ---------------------- ----------------------
+
+
+index_in_bounds :: #force_inline proc "contextless" (index: int, array:[]$T) -> bool {
+	return index >= 0 && index < len(array)
+}
+
+kilobytes :: proc(value: $N) -> N where intrinsics.type_is_numeric(N) && size_of(N) == 8 { return value*1024 }
+megabytes :: proc(value: $N) -> N where intrinsics.type_is_numeric(N) && size_of(N) == 8 { return kilobytes(value)*1024 }
+gigabytes :: proc(value: $N) -> N where intrinsics.type_is_numeric(N) && size_of(N) == 8 { return megabytes(value)*1024 }
+terabytes :: proc(value: $N) -> N where intrinsics.type_is_numeric(N) && size_of(N) == 8 { return gigabytes(value)*1024 }
+
+swap :: proc(a, b: ^$T) {
+    b^, a^ = a^, b^
+}
+
+print_bits :: proc(a: u8) {
+	for i:=256; i>0; i >>= 1 {
+		fmt.print('1' if a & u8(i) != 0 else '0')
+	}
+	fmt.println()
 }

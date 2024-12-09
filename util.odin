@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:strings"
 import "core:strconv"
 import "core:os"
+import win "core:sys/windows"
 import "base:intrinsics"
 
 kilobytes :: proc(value: $N) -> N where intrinsics.type_is_numeric(N) && size_of(N) == 8 { return value*1024 }
@@ -154,4 +155,22 @@ read_lines :: proc(file: string) -> (result: []string, success: b32) {
 
 index_in_bounds :: #force_inline proc "contextless" (index: int, array:[]$T) -> bool {
 	return index >= 0 && index < len(array)
+}
+
+@(private="file")
+GLOBAL_perf_counter_frequency : win.LARGE_INTEGER
+
+init_qpc :: #force_inline proc() {
+    win.QueryPerformanceFrequency(&GLOBAL_perf_counter_frequency)
+}
+
+get_wall_clock :: #force_inline proc() -> i64 {
+    assert(GLOBAL_perf_counter_frequency != 0)
+    result : win.LARGE_INTEGER
+    win.QueryPerformanceCounter(&result)
+    return cast(i64) result
+}
+
+get_seconds_elapsed :: #force_inline proc(start, end: i64) -> f32 {
+    return f32(end - start) / f32(GLOBAL_perf_counter_frequency)
 }

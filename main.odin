@@ -1,5 +1,6 @@
 package main
 
+import "base:intrinsics"
 import "core:fmt"
 import "core:math"
 import "core:os"
@@ -7,33 +8,49 @@ import "core:slice"
 import "core:strings"
 import "core:strconv"
 
-main :: proc() {
-    do_day( 1, day01, "distance", "similarity")
-    do_day( 2, day02, "safe reports", "safe reports with tolerance")
-    do_day( 3, day03, "uncorrupted mul instructions", "enabled mul instructions")
-    do_day( 4, day04, "XMAS count", "X-MAS count")
-    do_day( 5, day05, "correct update middle page number sum", "fixed incorrect update middle page number sum", true, false)
-    do_day( 6, day06, "visited positions", "obstruction positions causing a loop", true, false)
-    do_day( 7, day07, "total calibration result", "total calibration result with concatenation")
-    do_day( 8, day08, "antinode locations", "antinode locations with resonant harmonics")
-    do_day( 9, day09, "", "", false, false)
-    do_day(10, day10, "", "", false, false)
-    do_day(11, day11, "", "", false, false)
-    do_day(12, day12, "", "", false, false)
-    do_day(13, day13, "", "", false, false)
-    do_day(14, day14, "", "", false, false)
-    do_day(15, day15, "", "", false, false)
-    do_day(16, day16, "", "", false, false)
-    do_day(17, day17, "", "", false, false)
-    do_day(18, day18, "", "", false, false)
-    do_day(19, day19, "", "", false, false)
-    do_day(20, day20, "", "", false, false)
-    do_day(21, day21, "", "", false, false)
-    do_day(22, day22, "", "", false, false)
-    do_day(23, day23, "", "", false, false)
-    do_day(24, day24, "", "", false, false)
-    do_day(25, day25, "", "", false, false)
+Completed :: struct { num: int, func: proc(_,_:string)->(i64,i64), label1, label2: string }
+Todo      :: struct { using _: Completed, done1, done2: bool }
+Day:: union{ Completed, Todo }
 
+days := [?]Day{
+    Completed{ 1, day01, "distance", "similarity"},
+    Completed{ 2, day02, "safe reports", "safe reports with tolerance"},
+    Completed{ 3, day03, "uncorrupted mul instructions", "enabled mul instructions"},
+    Completed{ 4, day04, "XMAS count", "X-MAS count"},
+    Todo{ {5, day05, "correct update middle page number sum", "fixed incorrect update middle page number sum"}, true, false},
+    Todo{ {6, day06, "visited positions", "obstruction positions causing a loop"}, true, false},
+    Completed{ 7, day07, "total calibration result", "total calibration result with concatenation"},
+    Completed{ 8, day08, "antinode locations", "antinode locations with resonant harmonics"},
+    Todo{{ 9, day09, "", ""}, false, false},
+    Todo{{10, day10, "", ""}, false, false},
+    Todo{{11, day11, "", ""}, false, false},
+    Todo{{12, day12, "", ""}, false, false},
+    Todo{{13, day13, "", ""}, false, false},
+    Todo{{14, day14, "", ""}, false, false},
+    Todo{{15, day15, "", ""}, false, false},
+    Todo{{16, day16, "", ""}, false, false},
+    Todo{{17, day17, "", ""}, false, false},
+    Todo{{18, day18, "", ""}, false, false},
+    Todo{{19, day19, "", ""}, false, false},
+    Todo{{20, day20, "", ""}, false, false},
+    Todo{{21, day21, "", ""}, false, false},
+    Todo{{22, day22, "", ""}, false, false},
+    Todo{{23, day23, "", ""}, false, false},
+    Todo{{24, day24, "", ""}, false, false},
+    Todo{{25, day25, "", ""}, false, false},
+}
+
+main :: proc() {
+    init_qpc()
+    if len(os.args) >= 2 {
+        assert(len(os.args) == 2, "bad argument")
+        num := strconv.atoi(os.args[1])
+        do_day(days[num-1])
+    } else {
+        for day in days {
+            do_day(day)
+        }
+    }
 }
 
 day25 :: day0X
@@ -52,7 +69,42 @@ day13 :: day0X
 day12 :: day0X
 day11 :: day0X
 day10 :: day0X
-day09 :: day0X
+day09 :: proc(path, test_path: string) -> (part1, part2: i64) {
+    line, ok := read_file(path when !ODIN_DEBUG else test_path)
+    assert(auto_cast ok)
+
+    DiskMap :: [dynamic]int
+
+    display :: proc(diskmap: DiskMap) {
+        is_space: b32
+        file_index: i32
+        for e in diskmap {
+            for i in 0..<e {
+                if is_space {
+                    fmt.print(".")
+                } else {
+                    fmt.print(file_index)
+                }
+            }
+            if !is_space {
+                file_index +=1
+            }
+
+            is_space = !is_space
+        }
+    }
+
+    diskmap : DiskMap
+    rest := line
+    for rest != "" {
+        num, rest := strconv.atoi(rest[:1]), rest[1:]
+        fmt.println(num, " - ", rest)
+    }
+    
+    
+
+    return
+}
 
 day0X :: proc(path, test_path: string) -> (part1, part2: i64) {
     line, ok := read_file(path when !ODIN_DEBUG else test_path)
@@ -230,8 +282,6 @@ day06 :: proc(path, test_path: string) -> (visited_positions, loop_possibilities
     }
     rows := len(line) / cols
     grid := make([]Cell, rows * cols)
-    phantom_spawns := make([]Cell, rows * cols)
-    
     
     guard: Guard
     {
@@ -352,40 +402,44 @@ day06 :: proc(path, test_path: string) -> (visited_positions, loop_possibilities
     }
 
     phantoms: [dynamic]Guard
+    spawns: map[Position]b32
+    path: map[[2]int]b32
     for {
         if guard.state == .Alive {
             position := &grid[guard.pos.x * cols + guard.pos.y]
             Unvisited  :: Cell{}
             if position^ == Unvisited {
                 visited_positions += 1
+                path[guard.pos] = true
             }
 
-            // TODO(viktor): spawned phantom revisited is also a die moment
             prev := guard
             update_guard(grid, rows, cols, &guard, false)
             if prev.dir not_in position {
                 if guard.pos != guard.start {
-                    spawn_point := &phantom_spawns[prev.pos.x * cols + prev.pos.y]
                     phantom_dir := turn_right(prev.dir)
-                    if phantom_dir not_in spawn_point {
-                        phantom := Guard{
-                            pos        = prev.pos,
-                            dir        = phantom_dir,
-                            start      = prev.pos,
-                            start_dir  = phantom_dir,
+                    if (Position{ prev.pos, phantom_dir }) not_in spawns {
+                        would_have_blocked_guards_path:= guard.pos in path
+                        if !would_have_blocked_guards_path {
+                            phantom := Guard{
+                                pos        = prev.pos,
+                                dir        = phantom_dir,
+                                start      = prev.pos,
+                                start_dir  = phantom_dir,
+                            }
+                            spawns[phantom.position] = true
+                            
+                            append(&phantoms, phantom)
                         }
-                        spawn_point^ += { phantom_dir }
-                        
-                        append(&phantoms, phantom)
                     }
                 }
                 position^ += { prev.dir }
             }
         }
-        // TODO(viktor): IMPORTANT(viktor): confirm that no phantom path is counted twice
+
         alive_count := guard.state == .Alive ? 1 : 0
         #reverse for &it, it_index in phantoms {
-            if it.state == .Alive {
+            for it.state == .Alive {
                 alive_count += 1
                 update_guard(grid, rows, cols, &it, true)
                 if it.state == .Looped {
@@ -777,18 +831,32 @@ day01 :: proc(path, test_path:string) -> (total_distance, similarity: i64){
     return total_distance, similarity
 }
 
-do_day :: proc(num:int, day_func: proc(path, test_path: string) -> (i64, i64), label1, label2: string, solved1 := true, solved2 := true) {
+do_day :: proc{ do_day_switch, do_day_raw }
+do_day_switch :: proc(day: Day) {
+    switch v in day {
+        case Completed: do_day(v.num, v.func, v.label1, v.label2)
+        case Todo:      do_day(v.num, v.func, v.label1, v.label2, v.done1, v.done2)
+    }
+}
+do_day_raw :: proc(num:int, day_func: proc(path, test_path: string) -> (i64, i64), label1, label2: string, solved1 := true, solved2 := true) {
     if day_func != day0X {
         path      := fmt.tprintf("./data/%02d.txt", num)
         test_path := fmt.tprintf("./data/%02d_test.txt", num)
+        start := get_wall_clock()
         d01_one, d01_two := day_func(path, test_path)
+        elapsed := get_seconds_elapsed(start, get_wall_clock())
         fmt.printfln("Day % 2d:", num)
+        if elapsed < 1 {
+            fmt.printfln("  %.3fms", elapsed*1000)
+        } else {
+            fmt.printfln("  %.3fs", elapsed)
+        }
         if !solved1 {
-            fmt.print("  TODO:")
+            fmt.print(" TODO:")
         }
         fmt.printfln("  Part 1: %v (%v)", d01_one, label1)
         if !solved2 {
-            fmt.print("  TODO:")
+            fmt.print(" TODO:")
         }
         fmt.printfln("  Part 2: %v (%v)", d01_two, label2)
     }

@@ -10,7 +10,7 @@ import "core:strconv"
 
 Completed :: struct { num: int, func: proc(_,_:string)->(i64,i64), label1, label2: string }
 Todo      :: struct { using _: Completed, done1, done2: bool }
-Day:: union{ Completed, Todo }
+Day       :: union{ Completed, Todo }
 
 main :: proc() {
     days := [?]Day{
@@ -23,9 +23,9 @@ main :: proc() {
         Completed{ 7, day07, "total calibration result", "total calibration result with concatenation"},
         Completed{ 8, day08, "antinode locations", "antinode locations with resonant harmonics"},
         Completed{ 9, day09, "filesystem checksum by file block", "filesystem checksum by whole file"},
-        Todo{{10, day10, "", ""}, false, false},
-        Todo{{11, day11, "", ""}, false, false},
-        Todo{{12, day12, "", ""}, false, false},
+        Completed{10, day10, "total trail score", "total trail ratings"},
+        Completed{11, day11, "stones after 25 blinks", "stones after 75 blinks"},
+        Completed{12, day12, "total fence price", "bulk order fence price"},
         Todo{{13, day13, "", ""}, false, false},
         Todo{{14, day14, "", ""}, false, false},
         Todo{{15, day15, "", ""}, false, false},
@@ -46,28 +46,328 @@ main :: proc() {
         num := strconv.atoi(os.args[1])
         do_day(days[num-1])
     } else {
+        start := get_wall_clock()
         for day in days {
             do_day(day)
+        }
+        elapsed := get_seconds_elapsed(start, get_wall_clock())
+        fmt.print("Total Time: ")
+        if elapsed < 1 {
+            fmt.printfln("%.3fms", elapsed * 1000)
+        } else {
+            fmt.printfln("%.3fs", elapsed)
         }
     }
 }
 
-day25 :: day0X
-day24 :: day0X
-day23 :: day0X
-day22 :: day0X
-day21 :: day0X
-day20 :: day0X
-day19 :: day0X
-day18 :: day0X
-day17 :: day0X
-day16 :: day0X
-day15 :: day0X
-day14 :: day0X
-day13 :: day0X
-day12 :: day0X
-day11 :: day0X
-day10 :: day0X
+dayXX :: proc(path, test_path: string) -> (part1, part2: i64) {
+    line, ok := read_file(path when !ODIN_DEBUG else test_path)
+    assert(auto_cast ok)
+
+    return
+}
+
+day25 :: dayXX
+day24 :: dayXX
+day23 :: dayXX
+day22 :: dayXX
+day21 :: dayXX
+day20 :: dayXX
+day19 :: dayXX
+day18 :: dayXX
+day17 :: dayXX
+day16 :: dayXX
+day15 :: dayXX
+day14 :: dayXX
+day13 :: dayXX
+
+day12 :: proc(path, test_path: string) -> (total_fence_price, bulk_fence_price: i64) {
+    file, ok := read_file(path when !ODIN_DEBUG else test_path)
+    assert(auto_cast ok)
+
+    Position  :: [2]int
+    Direction :: enum {North, East, South, West}
+
+    opposite := [Direction]Direction { .North=.South, .East=.West, .South=.North, .West=.East }
+    deltas   := [Direction]Position { .North = {-1, 0}, .East = {0, 1}, .South = {1, 0}, .West = {0, -1}}
+
+    Plant :: rune
+    Plot :: struct {
+        plant: Plant,
+        fences: bit_set[Direction],
+        visited: bool,
+        region: [dynamic]Position,
+    }
+
+    rows, cols := dimensions(file)
+    garden := make([]Plot, rows*cols)
+    { 
+        index: int
+        for r in file {
+            if r != '\n' {
+                garden[index] = { plant = r, fences = {.North, .South, .East, .West} }
+                index += 1
+            }
+        }
+    }
+
+    // Plan fences
+    for row in 0..<rows {
+        for col in 0..<cols {
+            plot := &garden[row * cols + col]
+
+            for dir in Direction {
+                next := deltas[dir] + {row, col}
+            
+                if next.x >= 0 && next.x < rows && next.y >= 0 && next.y < cols {
+                    next_plot := &garden[next.x * cols + next.y]
+            
+                    if next_plot.plant == plot.plant {
+                        plot.fences      -= { dir }
+                        next_plot.fences -= { opposite[dir] }
+                    }
+                }
+            }
+        }
+    }
+
+    // Identify regions
+    for row in 0..<rows {
+        for col in 0..<cols {
+            pos  := Position{row, col}
+            plot := &garden[pos.x * cols + pos.y]
+            
+            if !plot.visited {
+                plot.region = {}
+
+                candidates := [dynamic]Position{ pos }
+                for len(candidates) > 0 {
+                    candidate_pos := pop(&candidates)
+                    candidate := &garden[candidate_pos.x * cols + candidate_pos.y]
+                    
+                    if !candidate.visited {
+                        assert(candidate.plant == plot.plant)
+                        candidate.visited = true
+                        
+                        append(&plot.region, candidate_pos)
+
+                        for dir in Direction {
+                            if dir not_in candidate.fences {
+                                next := deltas[dir] + candidate_pos
+
+                                if next.x >= 0 && next.x < rows && next.y >= 0 && next.y < cols {
+                                    next_plot := &garden[next.x * cols + next.y]
+                                    assert(candidate.plant == next_plot.plant)
+
+                                    append(&candidates, next)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for origin in garden {
+        if origin.region != nil {
+            area := len(origin.region)
+
+            perimeter: int
+            for pos in origin.region {
+                plot := &garden[pos.x * cols + pos.y]
+                perimeter += card(plot.fences)
+            }
+            
+            sides: int
+            {
+                count_sides :: proc(side, step: Direction, origin: Plot, garden:[]Plot, rows, cols: int, deltas:[Direction]Position) -> int {
+                    sides: map[Position]bool
+                    for pos in origin.region {
+                        pos := pos
+                        plot := &garden[pos.x * cols + pos.y]
+                        
+                        if side in plot.fences {
+                            for (step not_in plot.fences) {
+                                next := deltas[step] + pos
+
+                                assert(next.x >= 0 && next.x < rows && next.y >= 0 && next.y < cols)
+                                {
+                                    next_plot := &garden[next.x * cols + next.y]
+                                    if side not_in next_plot.fences {
+                                        break
+                                    } else {
+                                        plot = next_plot
+                                        pos = next
+                                    }
+                                }
+                            }
+                            sides[pos] = true
+                        }
+                    }
+                    return len(sides)
+                }
+                sides += count_sides(.West, .South, origin, garden, rows, cols, deltas)
+                sides += count_sides(.East, .South, origin, garden, rows, cols, deltas)
+                sides += count_sides(.North, .West, origin, garden, rows, cols, deltas)
+                sides += count_sides(.South, .West, origin, garden, rows, cols, deltas)
+            }
+
+            total_fence_price += auto_cast (area * perimeter)
+            bulk_fence_price  += auto_cast (area * sides)
+        }
+    }
+
+    return
+}
+
+day11 :: proc(path, test_path: string) -> (stones_after_25_blinks, stones_after_75_blinks: i64) {
+    line, ok := read_file(path when !ODIN_DEBUG else test_path)
+    assert(auto_cast ok)
+
+    count_digits :: proc(x: i64) -> (digits: i64 = 1) {
+        x := x
+        for x >= 10 {
+            digits += 1
+            x /= 10
+        }
+
+        return
+    }
+
+    Stones :: map[i64]i64
+    current, next: Stones
+    rest := line
+    for rest != "" {
+        num: i64
+        num, rest = chop_number(rest)
+        current[num] = 1
+    }
+
+    for blink in 1..=75 {
+        next = {}
+        
+        for stone, count in current {
+            digits := count_digits(stone)
+
+            if stone == 0 {
+                next[1] += count
+            } else if digits % 2 == 0 {
+                shift := cast(i64) math.pow10(cast(f64) (digits / 2))
+                upper := stone / shift
+                lower := stone - upper * shift
+                
+                next[upper] += count
+                next[lower] += count
+            } else {
+                next[stone * 2024] += count
+            }
+        }
+        
+        current = next
+
+        if blink == 25 {
+            for stone, count in current {
+                stones_after_25_blinks += count
+            }
+        }
+    }
+    
+    for stone, count in current {
+        stones_after_75_blinks += count
+    }
+
+    return 
+}
+
+day10 :: proc(path, test_path: string) -> (trailhead_scores, trailhead_ratings: i64) {
+    file, ok := read_file(path when !ODIN_DEBUG else test_path)
+    assert(auto_cast ok)
+
+    rows, cols := dimensions(file)
+    
+    Step :: struct{
+        height: i64,
+        step_count: i64,
+    }
+    topo_map := make([]Step, rows * cols)
+    Position :: [2]int
+    trailheads: map[Position]struct{
+        ends: map[Position]bool,
+        splits: int,
+    }
+    {
+        row, col: int
+        rest := &file
+        for rest^ != "" {
+            if rest[0] == '\n' {
+                rest^ = rest[1:]
+                row += 1
+                col = 0
+            } else if rest[0] == '.' {
+                rest^ = rest[1:]
+                topo_map[row * cols + col] = {-1, 0}
+                col += 1
+            } else {
+                num := chop_digit(rest)
+                if num == 0 {
+                    trailheads[Position{row, col}] = {}
+                }
+                topo_map[row * cols + col] = {num, 0}
+
+                col += 1
+            }
+        }
+    }
+
+    Trail :: struct {
+        start, current: Position
+    }
+
+    trails: [dynamic]Trail
+    for key, _ in trailheads {
+        append(&trails, Trail{start = key, current = key})
+    }
+
+    for len(trails) > 0 {
+        using trail := pop_front(&trails)
+        deltas := [4]Position{ { -1,  0}, {  1,  0}, {  0,  1}, {  0, -1} }
+        current_step := topo_map[current.x * cols + current.y]
+        if current_step.height == 9 {
+            head := &trailheads[start]
+            head.ends[current] = true
+        } else {
+            for delta in deltas {
+                next := current + delta
+
+                if next.x >= 0 && next.x < rows && next.y >= 0 && next.y < cols {
+                    next_step := &topo_map[next.x * cols + next.y]
+                    if next_step.height == current_step.height+1 {
+                        append(&trails, Trail{ start, next })
+                        next_step.step_count += 1
+                    }
+                }
+            }
+        }
+    }
+    
+    all_ends : map[Position]Step
+    for _, paths in trailheads {
+        trailhead_scores += auto_cast len(paths.ends)
+        for end, _ in paths.ends {
+            step := topo_map[end.x * cols + end.y]
+            if end not_in all_ends {
+                all_ends[end] =  step
+            }
+        }
+    }
+
+    for _, step in all_ends {
+        trailhead_ratings += step.step_count
+    }
+
+    return
+}
 
 day09 :: proc(path, test_path: string) -> (filesystem_checksum_fragmented, filesystem_checksum_whole_file: i64) {
     line, ok := read_file(path when !ODIN_DEBUG else test_path)
@@ -176,7 +476,7 @@ day09 :: proc(path, test_path: string) -> (filesystem_checksum_fragmented, files
     {
         multiplier: i64
         for file in diskmap_fragmented {
-            for i in 0..<file.size {
+            for _ in 0..<file.size {
                 filesystem_checksum_fragmented += multiplier * auto_cast file.index
                 multiplier += 1
             }
@@ -185,20 +485,13 @@ day09 :: proc(path, test_path: string) -> (filesystem_checksum_fragmented, files
     {
         multiplier: i64
         for file in diskmap_whole_file {
-            for i in 0..<file.size {
+            for _ in 0..<file.size {
                 filesystem_checksum_whole_file += multiplier * auto_cast file.index
                 multiplier += 1
             }
             multiplier += auto_cast file.space
         }
     }
-
-    return
-}
-
-day0X :: proc(path, test_path: string) -> (part1, part2: i64) {
-    line, ok := read_file(path when !ODIN_DEBUG else test_path)
-    assert(auto_cast ok)
 
     return
 }
@@ -376,7 +669,7 @@ day06 :: proc(path, test_path: string) -> (visited_positions, loop_possibilities
     guard: Guard
     {
         row, col: int
-        for r, i in line {
+        for r in line {
             switch r {
             case '#': grid[row * cols + col] = {.Obstacle}
             case '^', 'v', '<', '>':
@@ -528,7 +821,7 @@ day06 :: proc(path, test_path: string) -> (visited_positions, loop_possibilities
         }
 
         alive_count := guard.state == .Alive ? 1 : 0
-        #reverse for &it, it_index in phantoms {
+        #reverse for &it in phantoms {
             for it.state == .Alive {
                 alive_count += 1
                 update_guard(grid, rows, cols, &it, true)
@@ -649,7 +942,6 @@ day04 :: proc(path, test_path: string) -> (xmas_count, x_mas_count: i64) {
     
     length := i64(len(line))
     for i in 0 ..< length {
-        before := xmas_count
         is_xmas :: #force_inline proc(text: string, p0, p1, p2, p3: i64) -> (result: b32) {
             max_index := max(p0, p1, p2, p3)
             if max_index < auto_cast len(text) {
@@ -790,7 +1082,7 @@ day02 :: proc(path, test_path: string) -> (safe_reports, safe_reports_with_dampe
     lines, ok := read_lines(path when !ODIN_DEBUG else test_path)
     assert(auto_cast ok)
 
-    for line, line_index in lines {
+    for line in lines {
         Report :: [dynamic]i64
         chop_report :: proc(view: string) -> (result: Report, rest: string) {
             rest = view
@@ -929,25 +1221,30 @@ do_day_switch :: proc(day: Day) {
     }
 }
 do_day_raw :: proc(num:int, day_func: proc(path, test_path: string) -> (i64, i64), label1, label2: string, solved1 := true, solved2 := true) {
-    if day_func != day0X {
+    if day_func != dayXX {
         path      := fmt.tprintf("./data/%02d.txt", num)
         test_path := fmt.tprintf("./data/%02d_test.txt", num)
+        
         start := get_wall_clock()
         d01_one, d01_two := day_func(path, test_path)
         elapsed := get_seconds_elapsed(start, get_wall_clock())
+        
         fmt.printfln("Day % 2d:", num)
+       
+        if !solved1 {
+            fmt.print("  TODO:")
+        }
+        fmt.printfln("  Part 1: %v (%v)", d01_one, label1)
+        
+        if !solved2 {
+            fmt.print("  TODO:")
+        }
+        fmt.printfln("  Part 2: %v (%v)", d01_two, label2)
+
         if elapsed < 1 {
             fmt.printfln("  %.3fms", elapsed*1000)
         } else {
             fmt.printfln("  %.3fs", elapsed)
         }
-        if !solved1 {
-            fmt.print(" TODO:")
-        }
-        fmt.printfln("  Part 1: %v (%v)", d01_one, label1)
-        if !solved2 {
-            fmt.print(" TODO:")
-        }
-        fmt.printfln("  Part 2: %v (%v)", d01_two, label2)
     }
 }

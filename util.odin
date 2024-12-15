@@ -32,6 +32,19 @@ shift_left :: proc(array: ^[dynamic]$T, src_index, dst_index:int) {
 // ---------------------- ---------------------- ----------------------
 
 
+dimensions :: proc(file: string) -> (rows, cols: int) {
+    for r, i in file {
+        if r == '\n' {
+            cols = i
+            rows = len(file) / cols
+            break
+        }
+    }
+    
+    return 
+}
+
+
 line_to_numbers :: proc(line:string, separator := ",") -> ([]int) {
 	numbers := strings.split(line, separator)
 	result := make([]int, len(numbers))
@@ -59,6 +72,15 @@ trim_left :: proc(view: string) -> (result: string) {
         result = result[1:]
     }
     return result
+}
+
+chop_digit :: proc(view: ^string) -> (result: i64) {
+    r := cast(rune) view[0]
+    if is_numeric(r) {
+        view^ = view[1:]
+        result = cast(i64) (r - '0')
+    }
+    return
 }
 
 chop_number :: proc(view: string) -> (result: i64, rest:string) {

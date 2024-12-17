@@ -97,11 +97,12 @@ chop_number :: proc(view: string) -> (result: i64, rest:string) {
     return cast(i64) strconv.atoi(view[:cut]), view[cut:]
 }
 
-trim_until_number :: proc(view: string) -> (ok: b32, chopped: i64, rest: string) {
+trim_until_number :: proc { trim_until_number_copy, trim_until_number_ref}
+trim_until_number_copy :: proc(view: string) -> (ok: bool, chopped: i64, rest: string) {
     for r, r_index in view {
-        if is_numeric(r) {
-            start:= r_index
-            end := start
+        if is_numeric(r) || r == '-' {
+            start := r_index
+            end   := start
             for n in view[r_index+1:] {
                 if is_numeric(n) {
                     end += 1
@@ -119,6 +120,29 @@ trim_until_number :: proc(view: string) -> (ok: b32, chopped: i64, rest: string)
     return false, chopped, view
 }
 
+trim_until_number_ref :: proc(view: ^string) -> (chopped: i64, ok: bool) #optional_ok {
+    for r, r_index in view {
+        if is_numeric(r) || r == '-' {
+            start := r_index
+            end   := start
+            for n in view[r_index+1:] {
+                if is_numeric(n) {
+                    end += 1
+                } else {
+                    break
+                }
+            }
+            end += 1
+            number := view[start:end]
+            chopped = auto_cast strconv.atoi(number)
+            view^ = view[end:]
+            return chopped, true
+        }
+    }
+
+    return chopped, false
+}
+
 eat :: proc(view: string, target: string) -> (rest: string) {
     cut := len(target)
     if view[:cut] == target {
@@ -128,7 +152,7 @@ eat :: proc(view: string, target: string) -> (rest: string) {
     }
 }
 
-expect :: proc(view: string, target: string) -> (ok: b32, rest: string) {
+expect :: proc(view: string, target: string) -> (ok: bool, rest: string) {
     cut := len(target)
     if view[:cut] == target {
         return true, view[cut:]
@@ -137,7 +161,7 @@ expect :: proc(view: string, target: string) -> (ok: b32, rest: string) {
     }
 }
 
-find :: proc(view: string, target: string) -> (ok: b32, index:i32) {
+find :: proc(view: string, target: string) -> (ok: bool, index:i32) {
     for r, r_index in view {
         if len(view) - r_index < len(target) {
             break
@@ -154,7 +178,7 @@ find :: proc(view: string, target: string) -> (ok: b32, index:i32) {
     return false, 0
 }
 
-trim :: proc(view: string, target: string) -> (ok: b32, rest: string) {
+trim :: proc(view: string, target: string) -> (ok: bool, rest: string) {
     cut: i32
     ok, cut = find(view, target)
     if ok {
@@ -165,20 +189,20 @@ trim :: proc(view: string, target: string) -> (ok: b32, rest: string) {
 }
 
 
-is_numeric :: proc(r: rune) -> b32 {
+is_numeric :: proc(r: rune) -> bool {
     switch r {
     case '0'..='9': return true
     case:           return false
     }
 }
 
-read_file :: proc(file: string) -> (result: string, success: b32) {
+read_file :: proc(file: string) -> (result: string, success: bool) {
 	data, ok := os.read_entire_file(file)
 	if !ok do return {}, false
 	return string(data), true
 }
 
-read_lines :: proc(file: string) -> (result: []string, success: b32) {
+read_lines :: proc(file: string) -> (result: []string, success: bool) {
 	data, ok := os.read_entire_file(file)
 	if !ok do return nil, false
 	return strings.split_lines(string(data)), true

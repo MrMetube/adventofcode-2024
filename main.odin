@@ -3,44 +3,48 @@ package main
 import "base:intrinsics"
 import "core:fmt"
 import "core:math"
+import "core:math/linalg"
 import "core:os"
 import "core:slice"
 import "core:strings"
 import "core:strconv"
+import "core:time"
 
-Completed :: struct { num: int, func: proc(_,_:string)->(i64,i64), label1, label2: string }
+Completed :: struct { num: int, func: proc(_,_:string)->(i64,i64), name, label1, label2: string }
 Todo      :: struct { using _: Completed, done1, done2: bool }
 Day       :: union{ Completed, Todo }
 
 main :: proc() {
     days := [?]Day{
-        Completed{ 1, day01, "distance", "similarity"},
-        Completed{ 2, day02, "safe reports", "safe reports with tolerance"},
-        Completed{ 3, day03, "uncorrupted mul instructions", "enabled mul instructions"},
-        Completed{ 4, day04, "XMAS count", "X-MAS count"},
-        Todo{ {5, day05, "correct update middle page number sum", "fixed incorrect update middle page number sum"}, true, false},
-        Todo{ {6, day06, "visited positions", "obstruction positions causing a loop"}, true, false},
-        Completed{ 7, day07, "total calibration result", "total calibration result with concatenation"},
-        Completed{ 8, day08, "antinode locations", "antinode locations with resonant harmonics"},
-        Completed{ 9, day09, "filesystem checksum by file block", "filesystem checksum by whole file"},
-        Completed{10, day10, "total trail score", "total trail ratings"},
-        Completed{11, day11, "stones after 25 blinks", "stones after 75 blinks"},
-        Completed{12, day12, "total fence price", "bulk order fence price"},
-        Todo{{13, day13, "", ""}, false, false},
-        Todo{{14, day14, "", ""}, false, false},
-        Todo{{15, day15, "", ""}, false, false},
-        Todo{{16, day16, "", ""}, false, false},
-        Todo{{17, day17, "", ""}, false, false},
-        Todo{{18, day18, "", ""}, false, false},
-        Todo{{19, day19, "", ""}, false, false},
-        Todo{{20, day20, "", ""}, false, false},
-        Todo{{21, day21, "", ""}, false, false},
-        Todo{{22, day22, "", ""}, false, false},
-        Todo{{23, day23, "", ""}, false, false},
-        Todo{{24, day24, "", ""}, false, false},
-        Todo{{25, day25, "", ""}, false, false},
+        Completed{ 1, day01, "Historian Hysteria", "distance", "similarity"},
+        Completed{ 2, day02, "Red-Nosed Reports", "safe reports", "safe reports with tolerance"},
+        Completed{ 3, day03, "Mull It Over", "uncorrupted mul instructions", "enabled mul instructions"},
+        Completed{ 4, day04, "Ceres Search", "XMAS count", "X-MAS count"},
+        Todo{ {5, day05, "Print Queue", "correct update middle page number sum", "fixed incorrect update middle page number sum"}, true, false},
+        Todo{ {6, day06, "Guard Gallivant", "visited positions", "obstruction positions causing a loop"}, true, false},
+        Completed{ 7, day07, "Bridge Repair", "total calibration result", "total calibration result with concatenation"},
+        Completed{ 8, day08, "Resonant Collinearity", "antinode locations", "antinode locations with resonant harmonics"},
+        Completed{ 9, day09, "Disk Fragmenter", "filesystem checksum by file block", "filesystem checksum by whole file"},
+        Completed{10, day10, "Hoof It", "total trail score", "total trail ratings"},
+        Completed{11, day11, "Plutonian Pebbles", "stones after 25 blinks", "stones after 75 blinks"},
+        Completed{12, day12, "Garden Groups", "total fence price", "bulk order fence price"},
+        Todo{{13, day13, "Claw Contraption", "", ""}, false, false},
+        Todo{{14, day14, "Restroom Redoubt", "safety factor", "easter egg time"}, true, false},
+        Todo{{15, day15, "Warehouse Woes", "", ""}, false, false},
+        Todo{{16, day16, "Reindeer Maze", "", ""}, false, false},
+        Todo{{17, day17, "Chronospatial Computer", "", ""}, false, false},
+        Todo{{18, day18, "", "", ""}, false, false},
+        Todo{{19, day19, "", "", ""}, false, false},
+        Todo{{20, day20, "", "", ""}, false, false},
+        Todo{{21, day21, "", "", ""}, false, false},
+        Todo{{22, day22, "", "", ""}, false, false},
+        Todo{{23, day23, "", "", ""}, false, false},
+        Todo{{24, day24, "", "", ""}, false, false},
+        Todo{{25, day25, "", "", ""}, false, false},
     }
+
     init_qpc()
+    
     if len(os.args) >= 2 {
         assert(len(os.args) == 2, "bad argument")
         num := strconv.atoi(os.args[1])
@@ -78,8 +82,169 @@ day18 :: dayXX
 day17 :: dayXX
 day16 :: dayXX
 day15 :: dayXX
-day14 :: dayXX
-day13 :: dayXX
+day14 :: proc(path, test_path: string) -> (safety_factor, easter_egg_time: i64) {
+    lines, ok := read_lines(path when !ODIN_DEBUG else test_path)
+    assert(auto_cast ok)
+
+    v2 :: [2]i64
+    Robot :: struct {
+        p, dp: v2
+    }
+
+    robots := make([]Robot, len(lines))
+    for line, i in lines {
+        rest := line
+        r := &robots[i]
+        r.p.x = trim_until_number(&rest)
+        r.p.y = trim_until_number(&rest)
+        r.dp.x = trim_until_number(&rest)
+        r.dp.y = trim_until_number(&rest)
+    }
+
+    dim := v2{11, 7} when ODIN_DEBUG else v2{101, 103}
+
+    display :: proc(robots: []Robot, dim: v2) {
+        for row in 0..<dim.y {
+            for col in 0..<dim.x {
+                count: i64
+                for robot in robots {
+                    if robot.p == {col, row} {
+                        count += 1
+                    }
+                }
+                if count != 0 {
+                    fmt.print(count)
+                } else {
+                    fmt.print('.')
+                }
+            }
+            fmt.println()
+        }
+        fmt.println()
+    }
+    
+    quadrants: [4]i64
+    for r in robots {
+        r := r
+        r.p += r.dp * 100
+        for r.p.x < 0 {
+            r.p.x += dim.x
+        }
+        for r.p.x >= dim.x {
+            r.p.x -= dim.x
+        }
+        for r.p.y < 0 {
+            r.p.y += dim.y
+        }
+        for r.p.y >= dim.y {
+            r.p.y -= dim.y
+        }
+
+        if r.p.x < dim.x/2 {
+            if r.p.y < dim.y/2 {
+                quadrants[0] += 1
+            } else if r.p.y > dim.y/2 {
+                quadrants[1] += 1
+            }
+        } else if r.p.x > dim.x/2 {
+            if r.p.y < dim.y/2 {
+                quadrants[2] += 1
+            } else if r.p.y > dim.y/2 {
+                quadrants[3] += 1
+            }
+        }
+    }
+
+    start :: 18
+    for &r in robots {
+        r.p += r.dp * start
+        for r.p.x < 0 {
+            r.p.x += dim.x
+        }
+        for r.p.x >= dim.x {
+            r.p.x -= dim.x
+        }
+        for r.p.y < 0 {
+            r.p.y += dim.y
+        }
+        for r.p.y >= dim.y {
+            r.p.y -= dim.y
+        }
+    }
+
+    // done manually, find the start of the pattern, then the increment, then wait
+    for second in 0..<10000 {
+        when false {
+            fmt.println(start + second * step_size, "seconds")
+            display(robots, dim)
+        }
+
+        step_size :: 101
+        for &r in robots {
+            r.p += r.dp * step_size
+            for r.p.x < 0 {
+                r.p.x += dim.x
+            }
+            for r.p.x >= dim.x {
+                r.p.x -= dim.x
+            }
+            for r.p.y < 0 {
+                r.p.y += dim.y
+            }
+            for r.p.y >= dim.y {
+                r.p.y -= dim.y
+            }
+         }
+    }
+
+    safety_factor = quadrants[0] * quadrants[1] * quadrants[2] * quadrants[3]
+    easter_egg_time = 7492
+    return 
+}
+
+day13 :: proc(path, test_path: string) -> (part1, part2: i64) {
+    lines, ok := read_lines(path when !ODIN_DEBUG else test_path)
+    assert(auto_cast ok)
+
+    Machine :: struct {
+        a, b, prize: [2]i64,
+    }
+
+    machines: [dynamic]Machine
+    for index := 0; index < len(lines); index += 4 {
+        line_a     := lines[index+0]
+        line_b     := lines[index+1]
+        line_prize := lines[index+2]
+
+        machine: Machine
+        rest := line_a
+        _, machine.a.x, rest = trim_until_number(rest)
+        _, machine.a.y, rest = trim_until_number(rest)
+
+        rest = line_b
+        _, machine.b.x, rest = trim_until_number(rest)
+        _, machine.b.y, rest = trim_until_number(rest)
+        
+        rest = line_prize
+        _, machine.prize.x, rest = trim_until_number(rest)
+        _, machine.prize.y, rest = trim_until_number(rest)
+
+        append(&machines, machine)
+    }
+
+    for machine in machines {
+        using machine
+        m := matrix[2,2] f32 {
+            auto_cast a.x, auto_cast b.x,
+            auto_cast a.y, auto_cast b.y,
+        }
+        p := [2]f32 {auto_cast prize.x, auto_cast prize.y}
+        det := linalg.determinant(m)
+        fmt.println(det)
+    }
+
+    return
+}
 
 day12 :: proc(path, test_path: string) -> (total_fence_price, bulk_fence_price: i64) {
     file, ok := read_file(path when !ODIN_DEBUG else test_path)
@@ -617,7 +782,7 @@ day07 :: proc(path, test_path: string) -> (total_calibration_result, total_calib
         test_value: i64
         numbers: [dynamic]i64
         test_value, rest = chop_number(rest)
-        ok: b32
+        ok: bool
         if ok, rest = expect(rest, ":"); ok {
             for rest != "" {
                 num: i64
@@ -1216,11 +1381,11 @@ day01 :: proc(path, test_path:string) -> (total_distance, similarity: i64){
 do_day :: proc{ do_day_switch, do_day_raw }
 do_day_switch :: proc(day: Day) {
     switch v in day {
-        case Completed: do_day(v.num, v.func, v.label1, v.label2)
-        case Todo:      do_day(v.num, v.func, v.label1, v.label2, v.done1, v.done2)
+        case Completed: do_day(v.num, v.func, v.name, v.label1, v.label2)
+        case Todo:      do_day(v.num, v.func, v.name, v.label1, v.label2, v.done1, v.done2)
     }
 }
-do_day_raw :: proc(num:int, day_func: proc(path, test_path: string) -> (i64, i64), label1, label2: string, solved1 := true, solved2 := true) {
+do_day_raw :: proc(num:int, day_func: proc(path, test_path: string) -> (i64, i64), name, label1, label2: string, solved1 := true, solved2 := true) {
     if day_func != dayXX {
         path      := fmt.tprintf("./data/%02d.txt", num)
         test_path := fmt.tprintf("./data/%02d_test.txt", num)
@@ -1229,7 +1394,7 @@ do_day_raw :: proc(num:int, day_func: proc(path, test_path: string) -> (i64, i64
         d01_one, d01_two := day_func(path, test_path)
         elapsed := get_seconds_elapsed(start, get_wall_clock())
         
-        fmt.printfln("Day % 2d:", num)
+        fmt.printfln("Day % 2d: %v", num, name)
        
         if !solved1 {
             fmt.print("  TODO:")

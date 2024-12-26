@@ -28,9 +28,9 @@ main :: proc() {
         Completed{10, day10, "Hoof It", "total trail score", "total trail ratings"},
         Completed{11, day11, "Plutonian Pebbles", "stones after 25 blinks", "stones after 75 blinks"},
         Completed{12, day12, "Garden Groups", "total fence price", "bulk order fence price"},
-        Todo{{13, day13, "Claw Contraption", "", ""}, false, false},
-        Todo{{14, day14, "Restroom Redoubt", "safety factor", "easter egg time"}, true, false},
-        Todo{{15, day15, "Warehouse Woes", "", ""}, false, false},
+        // Todo{{13, day13, "Claw Contraption", "", ""}, false, false},
+        Completed{14, day14, "Restroom Redoubt", "safety factor", "easter egg time"},
+        Todo{{15, day15, "Warehouse Woes", "box gps coordinate sum", "wide box gps coordinate sum"}, true, false},
         Todo{{16, day16, "Reindeer Maze", "", ""}, false, false},
         Todo{{17, day17, "Chronospatial Computer", "", ""}, false, false},
         Todo{{18, day18, "", "", ""}, false, false},
@@ -81,7 +81,238 @@ day19 :: dayXX
 day18 :: dayXX
 day17 :: dayXX
 day16 :: dayXX
-day15 :: dayXX
+
+day15 :: proc(path, test_path: string) -> (box_gps_coordinate_sum, wide_box_gps_coordinate_sum: i64) {
+    lines, ok := read_lines(path when !ODIN_DEBUG else test_path)
+    assert(auto_cast ok)
+
+    v2 :: [2]i64
+    deltas   := [Direction]v2 { .North = {-1, 0}, .East = {0, 1}, .South = {1, 0}, .West = {0, -1}}
+    Direction :: enum {East, North, West, South}
+    moves: [dynamic]Direction
+    
+    WALLS :: 2
+    rows, cols: i64 = ---, auto_cast len(lines[0]) - WALLS
+
+    for line, i in lines {
+        if line == "" {
+            rows = auto_cast i - WALLS
+            break
+        }
+    }
+    Cell :: enum { Empty, Wall, Box}
+    WideCell :: enum { Empty, Wall, LeftBox, RightBox}
+
+    robot, wide_robot: v2
+    warehouse := make([]Cell, rows * cols)
+    wide_warehouse := make([]WideCell, rows * cols*2)
+
+    for line, row in lines[1:][:rows] {
+        for r, col in line[1:][:cols] {
+            switch r {
+            case 'O': 
+                warehouse[row * auto_cast cols + col] = .Box
+                wide_warehouse[row * auto_cast cols*2 + col*2+0] = .LeftBox
+                wide_warehouse[row * auto_cast cols*2 + col*2+1] = .RightBox
+            case '#': 
+                warehouse[row * auto_cast cols + col] = .Wall
+                wide_warehouse[row * auto_cast cols*2 + col*2+0] = .Wall
+                wide_warehouse[row * auto_cast cols*2 + col*2+1] = .Wall
+            case '@': 
+                robot = { auto_cast row, auto_cast col }
+                wide_robot = { auto_cast row, auto_cast col*2 }
+            }
+        }
+    }
+    
+    for line in lines[rows+WALLS+1:] {
+        for r in line {
+            switch r {
+            case '>': append(&moves, Direction.East)
+            case '^': append(&moves, Direction.North)
+            case '<': append(&moves, Direction.West)
+            case 'v': append(&moves, Direction.South)
+            }
+        }
+    }
+
+    display :: proc { display_wide, display_normal }
+    display_wide :: proc(warehouse: []WideCell, robot: v2, rows, cols: i64) {
+        width := (cols+WALLS)*2 
+        for col in 0..<width do fmt.print("#")
+        fmt.println()
+    
+        for row in 0..<rows {
+            fmt.print("##")
+    
+            for col in 0..<cols*2 {
+                if robot == {auto_cast row, auto_cast col} {
+                    fmt.print("@")
+                } else {
+                    switch warehouse[row * cols*2 + col] {
+                        case .Empty: fmt.print(".")
+                        case .Wall: fmt.print("#")
+                        case .LeftBox: fmt.print("[")
+                        case .RightBox: fmt.print("]")
+                    }
+                }
+            }
+    
+            fmt.println("##")
+        }
+    
+        for col in 0..<width do fmt.print("#")
+        fmt.println()
+        fmt.println()
+    }
+    display_normal :: proc(warehouse: []Cell, robot: v2, rows, cols: i64) {
+        width := cols+WALLS 
+        for col in 0..<width do fmt.print("#")
+        fmt.println()
+    
+        for row in 0..<rows {
+            fmt.print("#")
+    
+            for col in 0..<cols {
+                if robot == {auto_cast row, auto_cast col} {
+                    fmt.print("@")
+                } else {
+                    switch warehouse[row * cols + col] {
+                        case .Empty: fmt.print(".")
+                        case .Wall: fmt.print("#")
+                        case .Box: fmt.print("O")
+                    }
+                }
+            }
+    
+            fmt.println("#")
+        }
+    
+        for col in 0..<width do fmt.print("#")
+        fmt.println()
+        fmt.println()
+    }
+
+    in_bounds :: proc(vec: v2, rows, cols: i64) -> bool {
+        return vec.x >= 0 && vec.x < rows && vec.y >= 0 && vec.y < cols 
+    }
+
+
+    for move in moves {
+        delta := deltas[move]
+
+        {
+            p := robot + delta
+            if in_bounds(p, rows, cols) {
+                cell := &warehouse[p.x * cols + p.y]
+
+                switch cell^ {
+                case .Empty: robot = p
+                case .Wall: //Nothing
+                case .Box:
+                    push_loop: for push := p; in_bounds(push, rows, cols); push += delta {
+                        cell_push := &warehouse[push.x * cols + push.y]
+
+                        switch cell_push^ {
+                        case .Box:  // keep looking
+                        case .Wall: // can not push
+                            break push_loop
+                        case .Empty:
+                            cell_push^ = .Box
+                            cell^ = .Empty
+                            robot = p
+
+                            break push_loop
+                        }
+                    }
+                }
+            }
+        }
+
+        {
+            can_move :: proc(wide_warehouse: []WideCell, p, dp: v2, move: Direction, rows, cols: i64) -> bool {
+                next := p + dp
+                if !in_bounds(next, rows, cols) {
+                    return false
+                }
+
+                cell := wide_warehouse[next.x * cols + next.y]
+                switch cell {
+                case .Wall:  return false
+                case .Empty: return true
+                case .LeftBox, .RightBox: 
+                    other_half := next + (cell == .LeftBox ? {0,1} : {0,-1})
+                    switch move {
+                    case .North, .South: 
+                        if  can_move(wide_warehouse, next,       dp, move, rows, cols) &&
+                            can_move(wide_warehouse, other_half, dp, move, rows, cols) {
+                            do_move(wide_warehouse, next,        dp, move, rows, cols)
+                            do_move(wide_warehouse, other_half,  dp, move, rows, cols)
+                            return true
+                        } else {
+                            return false
+                        }
+                    case .West, .East: 
+                        return do_move(wide_warehouse, next, dp, move, rows, cols)
+                    }
+                }
+                unreachable()
+            }
+            
+            do_move :: proc(wide_warehouse: []WideCell, p, dp: v2, move: Direction, rows, cols: i64) -> bool {
+                cell := &wide_warehouse[p.x * cols + p.y]
+                next := p + dp
+                if !in_bounds(next, rows, cols) {
+                    return false
+                }
+                cell_next := &wide_warehouse[next.x * cols + next.y]
+                if can_move(wide_warehouse, p, dp, move, rows, cols) {
+                    assert(cell^ != .Wall)
+                    cell_next^ = cell^
+                    cell^ = .Empty
+                    return true
+                }
+
+                return false
+            }
+
+            if can_move(wide_warehouse, wide_robot, delta, move, rows, cols * 2) {
+                do_move(wide_warehouse, wide_robot, delta, move, rows, cols * 2)
+                wide_robot = wide_robot + delta
+            }
+        }
+        
+        when false {
+            fmt.print("Move ")
+            switch move {
+                case Direction.East  : fmt.print('>')
+                case Direction.North : fmt.print('^')
+                case Direction.West  : fmt.print('<')
+                case Direction.South : fmt.print('v')
+            }
+            fmt.println(":")
+            display(wide_warehouse, wide_robot, rows, cols)
+        }
+    }
+    
+    calculate_coordinate_sum :: proc(target: $T, warehouse:[]T, rows, cols: i64, walls: v2) -> (result: i64) {
+        for row in 0..<rows {
+            for col in 0..<cols {
+                c := warehouse[row * cols + col]
+                if c == target {
+                    result += (row+walls.x) * 100 + (col+walls.y)
+                }
+            }
+        }
+        return
+    }
+
+    box_gps_coordinate_sum      = calculate_coordinate_sum(Cell.Box, warehouse, rows, cols, {1,1})
+    wide_box_gps_coordinate_sum = calculate_coordinate_sum(WideCell.LeftBox, wide_warehouse, rows, cols*2, {1,2})
+
+    return
+}
+
 day14 :: proc(path, test_path: string) -> (safety_factor, easter_egg_time: i64) {
     lines, ok := read_lines(path when !ODIN_DEBUG else test_path)
     assert(auto_cast ok)
@@ -173,13 +404,14 @@ day14 :: proc(path, test_path: string) -> (safety_factor, easter_egg_time: i64) 
     }
 
     // done manually, find the start of the pattern, then the increment, then wait
-    for second in 0..<10000 {
+    easter_egg_time = 7492
+    step_size :: 101
+    for second := start; second < auto_cast easter_egg_time; second += step_size {
         when false {
             fmt.println(start + second * step_size, "seconds")
             display(robots, dim)
         }
 
-        step_size :: 101
         for &r in robots {
             r.p += r.dp * step_size
             for r.p.x < 0 {
@@ -198,7 +430,6 @@ day14 :: proc(path, test_path: string) -> (safety_factor, easter_egg_time: i64) 
     }
 
     safety_factor = quadrants[0] * quadrants[1] * quadrants[2] * quadrants[3]
-    easter_egg_time = 7492
     return 
 }
 
